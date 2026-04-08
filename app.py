@@ -2,16 +2,26 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 import yt_dlp
 import os
+import time
 
 app = Flask(__name__)
 CORS(app);
 
+cache = {}
+CACHE_TTL = 600
+
 @app.route("/search")
 def search():
-    query = request.args.get("query")
+    query = request.args.get("query", "").strip().lower()
 
     if not query:
         return jsonify({"error": "No query provided"})
+    
+    if query in cache:
+        cached_result, timestamp = cache[query]
+        if (time.time() - timestamp) < CACHE_TTL:
+            return jsonify(cached_result)
+        del cache[query]
 
     ydl_opts = {
         'format': 'bestaudio',
@@ -24,12 +34,15 @@ def search():
             info = ydl.extract_info(f"ytsearch1:{query}", download=False)
             video = info['entries'][0]
 
-            return jsonify({
+            result = {
                 "title": video.get("title"),
                 "audio_url": video.get("url"),
                 "thumbnail": video.get("thumbnail"),
                 "duration": video.get("duration")
-            })
+            }
+            cache[query] = (result, time.time())
+
+            return jsonify(result)
 
     except Exception as e:
         return jsonify({"error": str(e)})
