@@ -10,6 +10,28 @@ CORS(app);
 cache = {}
 CACHE_TTL = 600
 
+def fetch_video(query, ydl_opts, retries=3, max_results=1):
+    if not query or not isinstance(query, str):
+        raise ValueError("Query must be a non-empty string")
+
+    ydl = yt_dlp.YoutubeDL(ydl_opts)
+
+    for attempt in range(retries):
+        try:
+            info = ydl.extract_info(f"ytsearch{max_results}:{query}", download=False)
+            entries = info.get('entries', [])
+
+            if not entries:
+                raise ValueError(f"No results found for query: {query}")
+            return entries[0]
+        
+        except Exception as e:
+            print(f"Attempt: {attempt + 1} failed: {e}")
+
+            if attempt == retries - 1:
+                raise e
+            time.sleep(2 ** attempt)
+
 @app.route("/search")
 def search():
     query = request.args.get("query", "").strip().lower()
